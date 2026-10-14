@@ -1,0 +1,143 @@
+@using EventEase.Models
+@implements IDisposable
+@inject EventEaseState State
+
+<article class="event-card">
+    <div class="event-card__art event-card__art--@Event.Theme" aria-hidden="true">
+        <span class="event-card__icon">@Event.Icon</span>
+        <span class="event-card__category">@Event.Category</span>
+        @if (IsRegistered)
+        {
+            <span class="event-card__registered">✓ Registered</span>
+        }
+    </div>
+    <div class="event-card__body">
+        <p class="event-card__date">
+            <span>@Event.Date.ToString("MMM")</span>
+            <strong>@Event.Date.ToString("dd")</strong>
+        </p>
+        <div class="event-card__content">
+            <h3>@Event.Name</h3>
+            <p class="event-card__location"><span aria-hidden="true">⌖</span> @Event.Location</p>
+            <p class="event-card__description">@Event.Description</p>
+            <a class="event-card__action" href="@($"/events/{Event.Id}")">Explore event <span aria-hidden="true">→</span></a>
+        </div>
+    </div>
+    <details class="event-card__editor">
+        <summary>Edit event details</summary>
+        <EditForm Model="editModel" OnValidSubmit="SaveEventAsync">
+            <DataAnnotationsValidator />
+            <div class="form-field">
+                <label for="@($"event-name-{Event.Id}")">Event name</label>
+                <InputText id="@($"event-name-{Event.Id}")" @bind-Value="editModel.Name" />
+                <ValidationMessage For="@(() => editModel.Name)" />
+            </div>
+            <div class="form-field">
+                <label for="@($"event-date-{Event.Id}")">Date and time</label>
+                <InputDate id="@($"event-date-{Event.Id}")" Type="InputDateType.DateTimeLocal" @bind-Value="editModel.Date" />
+                <ValidationMessage For="@(() => editModel.Date)" />
+            </div>
+            <div class="form-field">
+                <label for="@($"event-location-{Event.Id}")">Location</label>
+                <InputText id="@($"event-location-{Event.Id}")" @bind-Value="editModel.Location" />
+                <ValidationMessage For="@(() => editModel.Location)" />
+            </div>
+            <div class="form-field">
+                <label for="@($"event-description-{Event.Id}")">Description</label>
+                <InputTextArea id="@($"event-description-{Event.Id}")" @bind-Value="editModel.Description" />
+                <ValidationMessage For="@(() => editModel.Description)" />
+            </div>
+            @if (saveError is not null)
+            {
+                <p class="form-error" role="alert">@saveError</p>
+            }
+            <button class="button button--primary" type="submit">Save event</button>
+        </EditForm>
+    </details>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public EventItem Event { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<EventItem> EventChanged { get; set; }
+
+    private EventEditModel editModel = new();
+    private string? saveError;
+    private int loadedEventId;
+    private bool IsRegistered => State.IsCurrentAttendeeRegistered(Event.Id);
+
+    protected override void OnInitialized()
+    {
+        State.Changed += HandleStateChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (loadedEventId != Event.Id)
+        {
+            LoadEvent();
+        }
+    }
+
+    private void LoadEvent()
+    {
+        loadedEventId = Event.Id;
+        editModel = new EventEditModel
+        {
+            Name = Event.Name,
+            Date = Event.Date,
+            Location = Event.Location,
+            Description = Event.Description
+        };
+        saveError = null;
+    }
+
+    private async Task SaveEventAsync()
+    {
+        var updatedEvent = Event with
+        {
+            Name = editModel.Name.Trim(),
+            Date = editModel.Date,
+            Location = editModel.Location.Trim(),
+            Description = editModel.Description.Trim()
+        };
+
+        try
+        {
+            await EventChanged.InvokeAsync(updatedEvent);
+            saveError = null;
+            LoadEvent();
+        }
+        catch (JSException)
+        {
+            saveError = "The event could not be saved to browser storage. Check your storage settings and try again.";
+        }
+    }
+
+    private void HandleStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        State.Changed -= HandleStateChanged;
+    }
+
+    private sealed class EventEditModel
+    {
+        [Required(ErrorMessage = "Enter an event name.")]
+        [StringLength(100, MinimumLength = 3)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Choose an event date and time.")]
+        public DateTime Date { get; set; }
+
+        [Required(ErrorMessage = "Enter an event location.")]
+        [StringLength(150, MinimumLength = 2)]
+        public string Location { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Enter an event description.")]
+        [StringLength(500, MinimumLength = 10)]
+        public string Description { get; set; } = string.Empty;
+    }
+}

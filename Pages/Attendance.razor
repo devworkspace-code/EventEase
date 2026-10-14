@@ -1,0 +1,164 @@
+@page "/attendance"
+@using EventEase.Models
+@inject EventEaseState State
+
+<PageTitle>Attendance | EventEase</PageTitle>
+
+<section class="attendance-page">
+    <p class="eyebrow">EVENT OPERATIONS</p>
+    <h1>Attendance tracker.</h1>
+    <p class="attendance-intro">Review registrations and mark attendees as they arrive. This list is stored in this browser.</p>
+
+    <div class="attendance-toolbar">
+        <label for="attendance-event">Choose an event</label>
+        <select id="attendance-event" @bind="selectedEventId" @bind:after="ResetPage">
+            @foreach (var eventItem in State.Events)
+            {
+                <option value="@eventItem.Id">@eventItem.Name</option>
+            }
+        </select>
+    </div>
+
+    @if (selectedEvent is not null)
+    {
+        var eventRegistrations = State.Registrations
+            .Where(registration => registration.EventId == selectedEvent.Id)
+            .OrderBy(registration => registration.Name)
+            .ToArray();
+        var checkedInCount = eventRegistrations.Count(registration => registration.CheckedInAt is not null);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(eventRegistrations.Length / (double)PageSize));
+        var visibleRegistrations = eventRegistrations
+            .Skip((currentPage - 1) * PageSize)
+            .Take(PageSize)
+            .ToArray();
+
+        <div class="attendance-summary" aria-live="polite">
+            <div>
+                <span class="attendance-summary__label">Registered</span>
+                <strong>@eventRegistrations.Length</strong>
+            </div>
+            <div>
+                <span class="attendance-summary__label">Checked in</span>
+                <strong>@checkedInCount <span>/ @eventRegistrations.Length</span></strong>
+            </div>
+        </div>
+
+        @if (eventRegistrations.Length == 0)
+        {
+            <div class="attendance-empty">
+                <h2>No registrations yet</h2>
+                <p>New attendees for @selectedEvent.Name will appear here.</p>
+            </div>
+        }
+        else
+        {
+            @if (eventRegistrations.Length > PageSize)
+            {
+                <div class="attendance-pagination" aria-label="Attendance pages">
+                    <button class="attendance-action" type="button" disabled="@(currentPage == 1)" @onclick="PreviousPage">Previous</button>
+                    <span>Page @currentPage of @totalPages · @eventRegistrations.Length attendees</span>
+                    <button class="attendance-action" type="button" disabled="@(currentPage == totalPages)" @onclick="NextPage">Next</button>
+                </div>
+            }
+            <div class="attendance-table-wrap">
+                <table class="attendance-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Attendee</th>
+                            <th scope="col">Registered</th>
+                            <th scope="col">Status</th>
+                            <th scope="col"><span class="visually-hidden">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var registration in visibleRegistrations)
+                        {
+                            <tr @key="registration.Id">
+                                <td>
+                                    <strong>@registration.Name</strong>
+                                    <span>@registration.Email</span>
+                                </td>
+                                <td>@registration.RegisteredAt.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")</td>
+                                <td>
+                                    @if (registration.CheckedInAt is { } checkedInAt)
+                                    {
+                                        <span class="attendance-status attendance-status--checked-in">Checked in · @checkedInAt.ToLocalTime().ToString("h:mm tt")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="attendance-status">Not checked in</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="attendance-action"
+                                            type="button"
+                                            disabled="@busyRegistrationIds.Contains(registration.Id)"
+                                            @onclick="() => ToggleAttendanceAsync(registration)">
+                                        @(registration.CheckedInAt is null ? "Check in" : "Undo check-in")
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+
+    @if (storageError is not null)
+    {
+        <p class="form-error" role="alert">@storageError</p>
+    }
+</section>
+
+@code {
+    private int selectedEventId = EventCatalog.Events[0].Id;
+    private const int PageSize = 25;
+    private int currentPage = 1;
+    private readonly HashSet<Guid> busyRegistrationIds = [];
+    private string? storageError;
+
+    private EventItem? selectedEvent => State.FindEvent(selectedEventId);
+
+    private void ResetPage() => currentPage = 1;
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        var registrationCount = State.Registrations.Count(registration => registration.EventId == selectedEventId);
+        var lastPage = Math.Max(1, (int)Math.Ceiling(registrationCount / (double)PageSize));
+        if (currentPage < lastPage)
+        {
+            currentPage++;
+        }
+    }
+
+    private async Task ToggleAttendanceAsync(EventRegistrationRecord registration)
+    {
+        busyRegistrationIds.Add(registration.Id);
+        storageError = null;
+        try
+        {
+            await State.SetAttendanceAsync(registration.Id, registration.CheckedInAt is null);
+        }
+        catch (InvalidOperationException exception)
+        {
+            storageError = exception.Message;
+        }
+        catch (JSException)
+        {
+            storageError = "Attendance could not be saved to browser storage. Check your storage settings and try again.";
+        }
+        finally
+        {
+            busyRegistrationIds.Remove(registration.Id);
+        }
+    }
+}

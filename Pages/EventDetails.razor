@@ -1,0 +1,87 @@
+@page "/events/{Id:int}"
+@using EventEase.Models
+@implements IDisposable
+@inject EventEaseState State
+
+<PageTitle>@(Event?.Name ?? "Event not found") | EventEase</PageTitle>
+
+@if (Event is null)
+{
+    <section class="event-not-found">
+        <p class="eyebrow">EVENT NOT FOUND</p>
+        <h1>That event has wandered off.</h1>
+        <p>It may have moved, or the link may be out of date.</p>
+        <a class="button button--primary" href="/">Browse all events</a>
+    </section>
+}
+else
+{
+    <article class="event-detail">
+        <a class="back-link" href="/">← All events</a>
+        <div class="event-detail__hero event-detail__hero--@Event.Theme">
+            <div>
+                <p class="eyebrow">@Event.Category</p>
+                <h1>@Event.Name</h1>
+                <p class="event-detail__intro">@Event.Description</p>
+            </div>
+            <span class="event-detail__icon" aria-hidden="true">@Event.Icon</span>
+        </div>
+        <div class="event-detail__content">
+            @if (State.IsCurrentAttendeeRegistered(Event.Id))
+            {
+                <p class="registration-status" role="status">
+                    <span aria-hidden="true">✓</span>
+                    You're registered for this event as @State.CurrentAttendee!.Name.
+                </p>
+            }
+            <div class="event-detail__facts">
+                <div>
+                    <span class="event-detail__label">Date &amp; time</span>
+                    <strong>@Event.Date.ToString("dddd, MMMM d, yyyy")</strong>
+                    <span>@Event.Date.ToString("h:mm tt")</span>
+                </div>
+                <div>
+                    <span class="event-detail__label">Location</span>
+                    <strong>@Event.Location</strong>
+                </div>
+            </div>
+            <aside class="event-detail__register">
+                <div>
+                    @if (State.IsCurrentAttendeeRegistered(Event.Id))
+                    {
+                        <h2>Your seat is saved</h2>
+                        <p>You're all set. We look forward to seeing you there.</p>
+                    }
+                    else
+                    {
+                        <h2>Save your seat</h2>
+                        <p>Join us for an experience worth showing up for.</p>
+                    }
+                </div>
+                <a class="button button--primary" href="@($"/register/{Event.Id}")">
+                    @(State.IsCurrentAttendeeRegistered(Event.Id) ? "Register another attendee" : "Register for this event")
+                    <span aria-hidden="true">→</span>
+                </a>
+            </aside>
+        </div>
+    </article>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private EventItem? Event => State.FindEvent(Id);
+
+    protected override void OnInitialized()
+    {
+        State.Changed += HandleStateChanged;
+    }
+
+    private void HandleStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        State.Changed -= HandleStateChanged;
+    }
+}

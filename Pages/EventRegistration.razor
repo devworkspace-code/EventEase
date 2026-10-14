@@ -1,0 +1,100 @@
+@page "/register/{Id:int}"
+@using EventEase.Models
+@inject EventEaseState State
+
+<PageTitle>Register | EventEase</PageTitle>
+
+@if (Event is null)
+{
+    <section class="event-not-found">
+        <p class="eyebrow">EVENT NOT FOUND</p>
+        <h1>We couldn't find that event.</h1>
+        <a class="button button--primary" href="/">Browse all events</a>
+    </section>
+}
+else if (registrationComplete)
+{
+    <section class="registration-panel registration-panel--success">
+        <div class="success-mark" aria-hidden="true">✓</div>
+        <p class="eyebrow">YOU'RE ON THE LIST</p>
+        <h1>See you there, @attendeeName!</h1>
+        <p>Your registration for <strong>@Event.Name</strong> is confirmed and saved in this browser.</p>
+        @if (State.SessionWarning is not null)
+        {
+            <p class="form-error" role="status">@State.SessionWarning</p>
+        }
+        <a class="button button--primary" href="/">Discover more events</a>
+    </section>
+}
+else
+{
+    <section class="registration-panel">
+        <a class="back-link" href="@($"/events/{Event.Id}")">← Back to event</a>
+        <p class="eyebrow">EVENT REGISTRATION</p>
+        <h1>Save your seat.</h1>
+        <p class="registration-panel__event">@Event.Name <span>·</span> @Event.Date.ToString("MMM d, yyyy")</p>
+
+        <EditForm Model="registration" OnValidSubmit="CompleteRegistration">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="form-field">
+                <label for="attendee-name">Full name</label>
+                <InputText id="attendee-name" @bind-Value="registration.Name" autocomplete="name" />
+                <ValidationMessage For="@(() => registration.Name)" />
+            </div>
+            <div class="form-field">
+                <label for="attendee-email">Email address</label>
+                <InputText id="attendee-email" type="email" @bind-Value="registration.Email" autocomplete="email" />
+                <ValidationMessage For="@(() => registration.Email)" />
+            </div>
+            <button class="button button--primary" type="submit">Confirm registration <span aria-hidden="true">→</span></button>
+            <p class="registration-note">Your registration is saved in this browser only. It is not sent to a server or shared across devices.</p>
+        </EditForm>
+        @if (registrationError is not null)
+        {
+            <p class="form-error" role="alert">@registrationError</p>
+        }
+    </section>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private EventItem? Event => State.FindEvent(Id);
+    private RegistrationForm registration = new();
+    private bool registrationComplete;
+    private string attendeeName = string.Empty;
+
+    private string? registrationError;
+
+    private async Task CompleteRegistration()
+    {
+        try
+        {
+            await State.RegisterAsync(Id, registration.Name, registration.Email);
+            attendeeName = registration.Name.Trim();
+            registrationComplete = true;
+            registrationError = null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            registrationError = exception.Message;
+        }
+        catch (JSException)
+        {
+            registrationError = "Your registration could not be saved to browser storage. Check your storage settings and try again.";
+        }
+    }
+
+    private sealed class RegistrationForm
+    {
+        [Required(ErrorMessage = "Please enter your name.")]
+        [StringLength(100, MinimumLength = 2, ErrorMessage = "Your name must be between 2 and 100 characters.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please enter your email address.")]
+        [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+        public string Email { get; set; } = string.Empty;
+    }
+}

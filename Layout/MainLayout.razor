@@ -1,0 +1,49 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+<div class="app-shell">
+    <header class="site-header">
+        <a class="site-brand" href="/" aria-label="EventEase home">
+            <span class="site-brand__mark" aria-hidden="true">e</span>
+            <span>event<span>ease</span></span>
+        </a>
+        <NavMenu />
+        <div class="header-actions">
+            @if (State.CurrentAttendee is { } attendee)
+            {
+                <span class="session-greeting">Welcome, @attendee.Name</span>
+            }
+            <a class="header-cta" href="/#upcoming-events">Explore events <span aria-hidden="true">↗</span></a>
+        </div>
+    </header>
+    <main>
+        @Body
+    </main>
+    <footer class="site-footer">
+        <a class="site-brand site-brand--footer" href="/" aria-label="EventEase home">
+            <span class="site-brand__mark" aria-hidden="true">e</span>
+            <span>event<span>ease</span></span>
+        </a>
+        <span>Bringing people together, one good plan at a time.</span>
+        <span>© 2026 EventEase</span>
+    </footer>
+</div>
+
+@code {
+    [Inject]
+    private EventEaseState State { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        State.Changed += HandleStateChanged;
+    }
+
+    private void HandleStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        State.Changed -= HandleStateChanged;
+    }
+}

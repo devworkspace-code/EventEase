@@ -1,0 +1,69 @@
+﻿@page "/"
+@using EventEase.Models
+@inject EventEaseState State
+
+<PageTitle>Discover events | EventEase</PageTitle>
+
+<section class="home-hero">
+    <div class="home-hero__copy">
+        <p class="eyebrow">GOOD THINGS HAPPEN TOGETHER</p>
+        <h1>Make room for<br />a little <span>magic.</span></h1>
+        <p>Thoughtfully planned gatherings for curious minds, bold ideas, and the moments that bring us closer.</p>
+        <a class="button button--light" href="#upcoming-events">Find your next event <span aria-hidden="true">↓</span></a>
+    </div>
+    <div class="home-hero__art" aria-hidden="true">
+        <span class="hero-orbit hero-orbit--one"></span>
+        <span class="hero-orbit hero-orbit--two"></span>
+        <span class="hero-spark">✳</span>
+        <span class="hero-dot hero-dot--one"></span>
+        <span class="hero-dot hero-dot--two"></span>
+    </div>
+    <span class="home-hero__caption">MADE FOR THE MOMENTS BETWEEN THE MEETINGS</span>
+</section>
+
+<section class="events-section" id="upcoming-events">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">ON THE CALENDAR</p>
+            <h2>Find your kind of gathering.</h2>
+        </div>
+        <p class="section-heading__note">Fresh ideas, good people, and plans worth making.</p>
+    </div>
+    <div class="event-picker">
+        <label for="event-picker">Get to know an event</label>
+        <select id="event-picker" @bind="selectedEventId">
+            @foreach (var eventItem in State.Events)
+            {
+                <option value="@eventItem.Id">@eventItem.Name</option>
+            }
+        </select>
+    </div>
+    @if (State.FindEvent(selectedEventId) is { } selectedEvent)
+    {
+        <article class="event-preview" aria-live="polite">
+            <div class="event-preview__art event-preview__art--@selectedEvent.Theme" aria-hidden="true">
+                <span>@selectedEvent.Icon</span>
+            </div>
+            <div class="event-preview__content">
+                <p class="eyebrow">@selectedEvent.Category</p>
+                <h3>@selectedEvent.Name</h3>
+                <p class="event-preview__facts">
+                    <span><span aria-hidden="true">◷</span> @selectedEvent.Date.ToString("dddd, MMMM d, yyyy · h:mm tt")</span>
+                    <span><span aria-hidden="true">⌖</span> @selectedEvent.Location</span>
+                </p>
+                <p class="event-preview__description">@selectedEvent.Description</p>
+                <a class="button button--primary" href="@($"/events/{selectedEvent.Id}")">View event details <span aria-hidden="true">→</span></a>
+            </div>
+        </article>
+    }
+    <div class="event-grid">
+        @foreach (var eventItem in State.Events)
+        {
+            <EventCard @key="eventItem.Id" Event="eventItem" EventChanged="State.SaveEventAsync" />
+        }
+    </div>
+</section>
+
+@code {
+    private int selectedEventId = EventCatalog.Events[0].Id;
+}

@@ -1,0 +1,62 @@
+﻿@inject EventEaseState State
+
+@if (!initialized && initializationError is null)
+{
+    <div class="app-loading" role="status">Loading EventEase…</div>
+}
+else if (initializationError is not null)
+{
+    <div class="storage-error" role="alert">
+        <h1>EventEase could not load your browser data.</h1>
+        <p>@initializationError</p>
+        <button class="button button--primary" @onclick="Reload">Try again</button>
+    </div>
+}
+else
+{
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Sorry, there's nothing at this address.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+}
+
+@code {
+    private bool initialized;
+    private string? initializationError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStateAsync();
+    }
+
+    private async Task Reload()
+    {
+        initializationError = null;
+        await LoadStateAsync();
+    }
+
+    private async Task LoadStateAsync()
+    {
+        try
+        {
+            await State.InitializeAsync();
+            initialized = true;
+        }
+        catch (JSException)
+        {
+            initializationError = "Browser storage is unavailable. Allow this site to use local and session storage, then try again.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            initializationError = "Saved browser data is invalid. Clear this site's EventEase storage and reload the app.";
+        }
+    }
+}
